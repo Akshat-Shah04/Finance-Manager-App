@@ -24,7 +24,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [
+    "https://finance-manager-app-pln0.onrender.com",
+    "http://localhost:3000",
+]
 
 
 # Application definition
