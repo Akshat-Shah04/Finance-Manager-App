@@ -6,12 +6,21 @@ from decimal import Decimal
 User = get_user_model()
 
 
-# ✅ User Serializer
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "username", "email"]
+        fields = ["id", "username", "email", "password"]  # Include password
         read_only_fields = ["id"]
+        extra_kwargs = {
+            "password": {"write_only": True}
+        }  # Ensure password isn't exposed in responses
+
+    def create(self, validated_data):
+        """Override create to properly hash the password"""
+        user = User.objects.create_user(
+            **validated_data
+        )  # Hashes password automatically
+        return user
 
 
 # ✅ Common Transaction Serializer (For Expense & Income)
