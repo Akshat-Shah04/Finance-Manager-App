@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from datetime import timedelta
 
 # Load environment variables from .env file
 load_dotenv()
@@ -32,6 +33,7 @@ AUTH_USER_MODEL = "finance.FinUser"
 
 INSTALLED_APPS = [
     "finance",
+    "rest_framework_simplejwt.token_blacklist",  #  Enable Token Blacklisting
     "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt",
@@ -73,6 +75,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "finance_management.wsgi.application"
+SIMPLE_JWT = {
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),  # Short-lived access token
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),  # Refresh token valid for 7 days
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+}
 
 
 # Database

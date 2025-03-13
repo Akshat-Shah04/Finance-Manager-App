@@ -19,6 +19,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from django.http import JsonResponse
 from datetime import datetime
+from rest_framework_simplejwt.tokens import RefreshToken
 
 
 # ================================
@@ -48,16 +49,32 @@ def user_login(request):
     user = authenticate(username=username, password=password)
 
     if user:
+        tokens = RefreshToken.for_user(user)
         login(request, user)
-        return Response({"message": "Login successful"})
+        return JsonResponse(
+            {
+                "message": "Login successful",
+                "access": str(tokens.access_token),
+                "refresh": str(tokens),
+            }
+        )
     return Response({"error": "Invalid credentials"}, status=400)
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def user_logout(request):
-    logout(request)
-    return Response({"message": "Logged out successfully"})
+    try:
+        refresh_token = request.data.get("refresh")
+        if not refresh_token:
+            return Response({"error": "Refresh token required"}, status=400)
+
+        token = RefreshToken(refresh_token)
+        token.blacklist()  # Blacklist the refresh token
+
+        return Response({"message": "Logout successful"})
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)
 
 
 # ================================
