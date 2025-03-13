@@ -21,20 +21,21 @@ from django.http import JsonResponse
 from datetime import datetime
 
 
-
 # ================================
 # User Authentication Views
 # ================================
-
-
 @csrf_protect
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register(request):
+    print("Received Data:", request.data)  # Debugging
+
     serializer = UserSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()
         return Response({"message": "User registered successfully"})
+
+    print("Errors:", serializer.errors)  # Debugging
     return Response(serializer.errors, status=400)
 
 

@@ -9,17 +9,12 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "username", "email", "password"]  # Include password
+        fields = ["id", "username", "email", "password"]
         read_only_fields = ["id"]
-        extra_kwargs = {
-            "password": {"write_only": True}
-        }  # Ensure password isn't exposed in responses
+        extra_kwargs = {"password": {"write_only": True}}
 
     def create(self, validated_data):
-        """Override create to properly hash the password"""
-        user = User.objects.create_user(
-            **validated_data
-        )  # Hashes password automatically
+        user = User.objects.create_user(**validated_data)  # Hash password
         return user
 
 
