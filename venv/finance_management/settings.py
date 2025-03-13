@@ -24,10 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-ALLOWED_HOSTS = [
-    "https://finance-manager-app-pln0.onrender.com",
-    "http://localhost:3000",
-]
+ALLOWED_HOSTS = ["finance-manager-app-pln0.onrender.com", "localhost"]
 
 
 # Application definition
@@ -35,6 +32,7 @@ AUTH_USER_MODEL = "finance.FinUser"
 
 INSTALLED_APPS = [
     "finance",
+    "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt",
     "django.contrib.admin",
@@ -47,6 +45,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     # "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -164,3 +163,14 @@ SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "False") == "True"
 # Load environment variables
 SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
 DEBUG = os.getenv("DEBUG", "True") == "True"
+
+CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins temporarily
+CORS_ALLOW_CREDENTIALS = True  # Allow credentials (JWT, Sessions, Cookies)
+CORS_ALLOW_HEADERS = ["*"]  # Allow all headers
+CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+
+
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",
+#     "https://yourfrontenddomain.com",
+# ]
