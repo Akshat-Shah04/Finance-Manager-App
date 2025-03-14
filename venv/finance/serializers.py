@@ -1,6 +1,6 @@
+from .models import Transaction
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Expense, Income
 from decimal import Decimal
 
 User = get_user_model()
@@ -18,63 +18,58 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 
-# ✅ Common Transaction Serializer (For Expense & Income)
+# ✅ Common Transaction Serializer (For Income & Expense)
 class TransactionSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)  # Read-only user field
     date = serializers.DateField(
         format="%d-%m-%Y", input_formats=["%d-%m-%Y", "iso-8601"]
     )
-    amount = serializers.DecimalField(
-        max_digits=10, decimal_places=2, min_value=Decimal("0.01")
-    )
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    type = serializers.ChoiceField(choices=Transaction.TRANSACTION_TYPES)
+    category = serializers.ChoiceField(choices=Transaction.CATEGORY_CHOICES)
+    payment_mode = serializers.ChoiceField(choices=Transaction.PAYMENT_MODES)
 
     class Meta:
-        fields = ["id", "user", "date", "amount", "description"]
+        model = Transaction
+        fields = [
+            "id",
+            "user",
+            "type",
+            "category",
+            "date",
+            "amount",
+            "payment_mode",
+            "description",
+        ]
 
+    def validate_amount(self, value):
+        """Ensure amount follows correct sign based on transaction type."""
+        transaction_type = self.initial_data.get("type", "").capitalize()
 
-# ✅ Expense Serializer
-class ExpenseSerializer(TransactionSerializer):
-    class Meta(TransactionSerializer.Meta):
-        model = Expense
-        fields = TransactionSerializer.Meta.fields + ["category"]
+        if transaction_type == "Expense" and value > 0:
+            return -value  # Convert to negative for expenses
+        elif transaction_type == "Income" and value < 0:
+            return abs(value)  # Convert to positive for income
 
-
-# ✅ Income Serializer
-class IncomeSerializer(TransactionSerializer):
-    class Meta(TransactionSerializer.Meta):
-        model = Income
-        fields = TransactionSerializer.Meta.fields + ["source"]
+        return value
 
 
 # ✅ Aggregated Data Serializers
 
 
-# 1️⃣ Expense Summary (Total Per Category)
-class ExpenseSummarySerializer(serializers.Serializer):
+# 1️⃣ Transaction Summary (Total Per Category)
+class TransactionSummarySerializer(serializers.Serializer):
     category = serializers.CharField()
     total_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
 
 
-# 2️⃣ Income Summary (Total Per Source)
-class IncomeSummarySerializer(serializers.Serializer):
-    source = serializers.CharField()
-    total_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
-
-
-# 3️⃣ Monthly Expense Summary
-class MonthlyExpenseSerializer(serializers.Serializer):
+# 2️⃣ Monthly Transaction Summary
+class MonthlyTransactionSerializer(serializers.Serializer):
     month = serializers.CharField()  # "January", "February", etc.
     year = serializers.IntegerField()
     total_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
 
 
-# 4️⃣ Monthly Income Summary
-class MonthlyIncomeSerializer(serializers.Serializer):
-    month = serializers.CharField()
-    year = serializers.IntegerField()
-    total_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
-
-
-# ✅ Matplotlib Graph Serializer (If Needed for Chart APIs)
+# ✅ Matplotlib Graph Serializer (For Chart APIs)
 class ChartSerializer(serializers.Serializer):
     chart = serializers.CharField()  # Base64 Encoded Image String

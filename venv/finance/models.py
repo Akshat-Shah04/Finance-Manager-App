@@ -64,7 +64,12 @@ class FinUser(AbstractBaseUser):
         return self.is_staff or self.is_superuser
 
 
-class Expense(models.Model):
+class Transaction(models.Model):
+    TRANSACTION_TYPES = [
+        ("Income", "Income"),
+        ("Expense", "Expense"),
+    ]
+
     CATEGORY_CHOICES = [
         ("Food", "Food"),
         ("Shopping", "Shopping"),
@@ -79,73 +84,64 @@ class Expense(models.Model):
         ("Loans", "Loans"),
         ("Investment", "Investment"),
         ("Health", "Health"),
-        ("Other", "Other"),
-    ]
-
-    user = models.ForeignKey(FinUser, on_delete=models.CASCADE, related_name="expenses")
-    category = models.CharField(max_length=255, choices=CATEGORY_CHOICES, db_index=True)
-    description = models.TextField(blank=True, null=True)
-    amount = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        db_index=True,
-        validators=[MinValueValidator(0.01)],
-    )
-    date = models.DateField(default=now, db_index=True)
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
-    updated_at = models.DateTimeField(auto_now=True, db_index=True)
-    is_deleted = models.BooleanField(default=False)
-    month = models.PositiveIntegerField(default=current_month, db_index=True)
-    year = models.PositiveIntegerField(default=current_year, db_index=True)
-
-    objects = models.Manager()  # Default manager
-    active_objects = ActiveExpenseManager()  # Only returns non-deleted records
-
-    def __str__(self):
-        return f"{self.user.username} - {self.category} - {self.amount} on {self.date}"
-
-    def delete(self, *args, **kwargs):
-        """Soft delete an expense instead of actually deleting it."""
-        self.is_deleted = True
-        self.save()
-
-
-class Income(models.Model):
-    INCOME_SOURCES = [
         ("Salary", "Salary"),
         ("Bonus", "Bonus"),
-        ("Award", "Award"),
         ("Refund", "Refund"),
         ("Interest", "Interest"),
-        ("Dividends", "Dividends"),
-        ("Freelance", "Freelance"),
-        ("Business", "Business"),
+        ("Dividend", "Dividend"),
+        ("Cash Deposit", "Cash Deposit"),
         ("Other", "Other"),
     ]
 
-    user = models.ForeignKey(FinUser, on_delete=models.CASCADE, related_name="incomes")
-    source = models.CharField(max_length=255, choices=INCOME_SOURCES, db_index=True)
-    description = models.TextField(blank=True, null=True)
+    PAYMENT_MODES = [
+        ("UPI", "UPI"),
+        ("IMPS", "IMPS"),
+        ("NEFT", "NEFT"),
+        ("Net Banking", "Net Banking"),
+        ("Debit Card", "Debit Card"),
+        ("Credit Card", "Credit Card"),
+        ("ATM Withdrawal", "ATM Withdrawal"),
+        ("Cash", "Cash"),
+        ("Cheque", "Cheque"),
+        ("Other", "Other"),
+    ]
+
+    user = models.ForeignKey(
+        FinUser, on_delete=models.CASCADE, related_name="transactions"
+    )
+    type = models.CharField(max_length=10, choices=TRANSACTION_TYPES, db_index=True)
+    category = models.CharField(
+        max_length=50, choices=CATEGORY_CHOICES, db_index=True, default="Other"
+    )
     amount = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        db_index=True,
         validators=[MinValueValidator(0.01)],
+        db_index=True,
     )
     date = models.DateField(default=now, db_index=True)
+    payment_mode = models.CharField(
+        max_length=50, choices=PAYMENT_MODES, db_index=True, default="Other"
+    )
+    description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True, db_index=True)
     is_deleted = models.BooleanField(default=False)
-    month = models.PositiveIntegerField(default=current_month, db_index=True)
-    year = models.PositiveIntegerField(default=current_year, db_index=True)
 
     objects = models.Manager()  # Default manager
-    active_objects = ActiveIncomeManager()  # Only returns non-deleted records
 
-    def __str__(self):
-        return f"{self.user.username} - {self.source} - {self.amount} on {self.date}"
+    def save(self, *args, **kwargs):
+        """Ensure expenses are stored as negative amounts and income as positive."""
+        if self.type == "Expense" and self.amount > 0:
+            self.amount = -self.amount
+        elif self.type == "Income" and self.amount < 0:
+            self.amount = abs(self.amount)
+        super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        """Soft delete an income instead of actually deleting it."""
+        """Soft delete a transaction instead of actually deleting it."""
         self.is_deleted = True
         self.save()
+
+    def __str__(self):
+        return f"{self.user.username} - {self.type} - {self.amount} on {self.date}"

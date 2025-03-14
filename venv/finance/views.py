@@ -10,11 +10,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from io import BytesIO
 import base64
-from .models import FinUser, Expense, Income
+from .models import *
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
-from .serializers import ExpenseSerializer, IncomeSerializer, UserSerializer
+from .serializers import *
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from django.http import JsonResponse
@@ -78,14 +78,14 @@ def user_logout(request):
 
 
 # ================================
-# CRUD Operations for Expense
+# CRUD Operations for Transactions
 # ================================
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def add_expense(request):
-    serializer = ExpenseSerializer(data=request.data, context={"request": request})
+def add_transaction(request):
+    serializer = TransactionSerializer(data=request.data, context={"request": request})
     if serializer.is_valid():
         serializer.save(user=request.user)
         return Response(serializer.data, status=201)
@@ -94,54 +94,20 @@ def add_expense(request):
 
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
-def delete_expense(request, expense_id):
-    expense = get_object_or_404(Expense, id=expense_id, user=request.user)
-    expense.is_deleted = True
-    expense.save()
-    return Response({"message": "Expense deleted successfully"})
+def delete_transaction(request, transaction_id):
+    transaction = get_object_or_404(Transaction, id=transaction_id, user=request.user)
+    transaction.is_deleted = True
+    transaction.save()
+    return Response({"message": "Transaction deleted successfully"})
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def get_expenses(request):
-    expenses = Expense.objects.filter(user=request.user, is_deleted=False).only(
-        "id", "category", "amount", "date"
+def get_transactions(request):
+    transactions = Transaction.objects.filter(user=request.user, is_deleted=False).only(
+        "id", "type", "category", "amount", "date", "payment_mode"
     )
-    serializer = ExpenseSerializer(expenses, many=True)
-    return Response(serializer.data)
-
-
-# ================================
-# CRUD Operations for Income
-# ================================
-
-
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def add_income(request):
-    serializer = IncomeSerializer(data=request.data, context={"request": request})
-    if serializer.is_valid():
-        serializer.save(user=request.user)
-        return Response(serializer.data, status=201)
-    return Response(serializer.errors, status=400)
-
-
-@api_view(["DELETE"])
-@permission_classes([IsAuthenticated])
-def delete_income(request, income_id):
-    income = get_object_or_404(Income, id=income_id, user=request.user)
-    income.is_deleted = True
-    income.save()
-    return Response({"message": "Income deleted successfully"})
-
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_income(request):
-    incomes = Income.objects.filter(user=request.user, is_deleted=False).only(
-        "id", "source", "amount", "date"
-    )
-    serializer = IncomeSerializer(incomes, many=True)
+    serializer = TransactionSerializer(transactions, many=True)
     return Response(serializer.data)
 
 
@@ -149,20 +115,32 @@ def get_income(request):
 # Analytics & Insights
 # ================================
 
+from django.db.models import Sum
+from rest_framework.response import Response
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import base64
+from io import BytesIO
+from django.http import JsonResponse
+from .models import Transaction
+
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_summary(request):
     total_expense = (
-        Expense.objects.filter(user=request.user, is_deleted=False).aggregate(
-            Sum("amount")
-        )["amount__sum"]
+        Transaction.objects.filter(
+            user=request.user, type="expense", is_deleted=False
+        ).aggregate(Sum("amount"))["amount__sum"]
         or 0
     )
     total_income = (
-        Income.objects.filter(user=request.user, is_deleted=False).aggregate(
-            Sum("amount")
-        )["amount__sum"]
+        Transaction.objects.filter(
+            user=request.user, type="income", is_deleted=False
+        ).aggregate(Sum("amount"))["amount__sum"]
         or 0
     )
     balance = total_income - total_expense
@@ -176,6 +154,13 @@ def get_summary(request):
     )
 
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_categories(request):
+    categories = Transaction.CATEGORY_CHOICES
+    return JsonResponse({"categories": list(categories)})
+
+
 # ================================
 # Data Visualization & ML Insights
 # ================================
@@ -184,13 +169,14 @@ def get_summary(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def generate_expense_trends(request):
-    expenses = Expense.objects.filter(user=request.user, is_deleted=False).only(
-        "amount", "date"
-    )
-    if not expenses.exists():
+    transactions = Transaction.objects.filter(
+        user=request.user, type="expense", is_deleted=False
+    ).only("amount", "date")
+
+    if not transactions.exists():
         return Response({"error": "No expense data available"}, status=404)
 
-    df = pd.DataFrame(list(expenses.values("amount", "date")))
+    df = pd.DataFrame(list(transactions.values("amount", "date")))
     df["date"] = pd.to_datetime(df["date"])
     df.set_index("date", inplace=True)
     df = df.resample("M").sum()
@@ -217,16 +203,12 @@ def generate_expense_trends(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def export_transactions_xlsx(request):
-    transactions = list(
-        Expense.objects.filter(user=request.user, is_deleted=False).values(
-            "category", "amount", "date"
-        )
-    ) + list(
-        Income.objects.filter(user=request.user, is_deleted=False).values(
-            "source", "amount", "date"
-        )
-    )
-    df = pd.DataFrame(transactions)
+    transactions = Transaction.objects.filter(
+        user=request.user, is_deleted=False
+    ).values("type", "category", "description", "amount", "date")
+
+    df = pd.DataFrame(list(transactions))
+
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
@@ -240,19 +222,19 @@ def export_transactions_xlsx(request):
 def export_transactions_pdf(request):
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = "attachment; filename=transactions.pdf"
+
     p = canvas.Canvas(response, pagesize=letter)
     p.drawString(100, 750, "Transactions Report")
-    transactions = Expense.objects.filter(
-        user=request.user, is_deleted=False
-    ) | Income.objects.filter(user=request.user, is_deleted=False)
+
+    transactions = Transaction.objects.filter(user=request.user, is_deleted=False)
     y = 720
+
     for transaction in transactions:
         p.drawString(
-            100,
-            y,
-            f"{transaction.category if hasattr(transaction, 'category') else transaction.source}: {transaction.amount}",
+            100, y, f"{transaction.category}: {transaction.amount} ({transaction.type})"
         )
         y -= 20
+
     p.showPage()
     p.save()
     return response
@@ -286,67 +268,60 @@ def detect_bank_format(df):
 
 
 def process_transactions(df, bank, user):
-    """Processes the transactions and saves them as Expense or Income."""
+    """Processes the transactions and saves them in the Transaction model."""
     transactions = []
 
     for _, row in df.iterrows():
-        if bank in ["ICICI", "SBI", "HDFC", "Axis"]:
-            date_col = (
-                "Date"
-                if "Date" in row
-                else "Txn Date" if "Txn Date" in row else "Transaction Date"
-            )
-            desc_col = (
-                "Narration"
-                if "Narration" in row
-                else "Description" if "Description" in row else "Transaction Details"
-            )
-            debit_col = (
-                "Withdrawal Amount"
-                if "Withdrawal Amount" in row
-                else (
-                    "Debit"
-                    if "Debit" in row
-                    else "Withdrawals" if "Withdrawals" in row else "Debit Amount"
-                )
-            )
-            credit_col = (
-                "Deposit Amount"
-                if "Deposit Amount" in row
-                else (
-                    "Credit"
-                    if "Credit" in row
-                    else "Deposits" if "Deposits" in row else "Credit Amount"
-                )
-            )
+        date_col = next(
+            (
+                col
+                for col in ["Date", "Txn Date", "Transaction Date"]
+                if col in df.columns
+            ),
+            None,
+        )
+        desc_col = next(
+            (
+                col
+                for col in ["Narration", "Description", "Transaction Details"]
+                if col in df.columns
+            ),
+            None,
+        )
+        debit_col = next(
+            (
+                col
+                for col in ["Withdrawal Amount", "Debit", "Withdrawals", "Debit Amount"]
+                if col in df.columns
+            ),
+            None,
+        )
+        credit_col = next(
+            (
+                col
+                for col in ["Deposit Amount", "Credit", "Deposits", "Credit Amount"]
+                if col in df.columns
+            ),
+            None,
+        )
 
-            date = datetime.strptime(str(row[date_col]), "%d/%m/%Y")
-            description = row[desc_col]
-            amount = row[debit_col] if pd.notna(row[debit_col]) else row[credit_col]
+        date = datetime.strptime(str(row[date_col]), "%d/%m/%Y") if date_col else None
+        description = row[desc_col] if desc_col else "Unknown Transaction"
+        amount = row[debit_col] if pd.notna(row[debit_col]) else row[credit_col]
+        transaction_type = "expense" if pd.notna(row[debit_col]) else "income"
 
-            if pd.notna(row[debit_col]):  # Expense
-                transactions.append(
-                    Expense(
-                        user=user,
-                        category="Bank Transaction",
-                        description=description,
-                        amount=amount,
-                        date=date,
-                    )
-                )
-            elif pd.notna(row[credit_col]):  # Income
-                transactions.append(
-                    Income(
-                        user=user,
-                        source="Bank Deposit",
-                        description=description,
-                        amount=amount,
-                        date=date,
-                    )
-                )
+        transactions.append(
+            Transaction(
+                user=user,
+                type=transaction_type,
+                category="Bank Transaction",
+                description=description,
+                amount=amount,
+                date=date,
+            )
+        )
 
-    Expense.objects.bulk_create([t for t in transactions if isinstance(t, Expense)])
-    Income.objects.bulk_create([t for t in transactions if isinstance(t, Income)])
+    Transaction.objects.bulk_create(transactions)
     return len(transactions)
 
 
@@ -358,6 +333,7 @@ def import_transactions(request):
         return JsonResponse({"error": "No file uploaded."}, status=400)
 
     file = request.FILES["file"]
+
     try:
         if file.name.endswith(".csv"):
             df = pd.read_csv(file)
@@ -380,6 +356,7 @@ def import_transactions(request):
                 "message": f"Successfully imported {total_imported} transactions from {bank}."
             }
         )
+
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
@@ -396,13 +373,22 @@ def check_budget_limit(user):
         return None
 
     if budget_limit:
-        total_expense = Expense.objects.filter(
-            user=user, is_deleted=False, month=now().month, year=now().year
-        ).aggregate(total=Sum("amount"))["total"]
-        if total_expense and total_expense >= budget_limit:
+        total_expense = (
+            Transaction.objects.filter(
+                user=user,
+                type="expense",
+                is_deleted=False,
+                month=now().month,
+                year=now().year,
+            ).aggregate(total=Sum("amount"))["total"]
+            or 0
+        )
+
+        if total_expense >= budget_limit:
             return (
                 f"Alert: You have reached your monthly budget limit of {budget_limit}!"
             )
+
     return None
 
 

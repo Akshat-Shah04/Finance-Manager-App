@@ -3,17 +3,15 @@ from .views import (
     register,
     user_login,
     user_logout,
-    add_expense,
-    delete_expense,
-    get_expenses,
-    add_income,
-    delete_income,
-    get_income,
+    get_transactions,
+    delete_transaction,
+    add_transaction,
     get_summary,
     generate_expense_trends,
     export_transactions_xlsx,
     export_transactions_pdf,
     get_budget_alert,
+    get_categories,
     import_transactions,
 )
 
@@ -22,14 +20,15 @@ urlpatterns = [
     path("register/", register, name="register"),
     path("login/", user_login, name="login"),
     path("logout/", user_logout, name="logout"),
-    # Expense URLs
-    path("expenses/add/", add_expense, name="add_expense"),
-    path("expenses/delete/<int:expense_id>/", delete_expense, name="delete_expense"),
-    path("expenses/", get_expenses, name="get_expenses"),
-    # Income URLs
-    path("income/add/", add_income, name="add_income"),
-    path("income/delete/<int:income_id>/", delete_income, name="delete_income"),
-    path("income/", get_income, name="get_income"),
+    # Transactions
+    path("transactions/add/", add_transaction, name="add_transaction"),
+    path(
+        "transactions/delete/<int:transaction_id>/",
+        delete_transaction,
+        name="delete_transaction",
+    ),
+    path("transactions/", get_transactions, name="get_transactions"),
+    path("categories/", get_categories, name="get_categories"),
     # Summary & Insights
     path("summary/", get_summary, name="get_summary"),
     path("expense-trends/", generate_expense_trends, name="generate_expense_trends"),
