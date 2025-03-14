@@ -157,8 +157,10 @@ def get_summary(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_categories(request):
-    categories = Transaction.CATEGORY_CHOICES
-    return JsonResponse({"categories": list(categories)})
+    categories = [
+        {"key": key, "value": value} for key, value in Transaction.CATEGORY_CHOICES
+    ]
+    return JsonResponse({"categories": categories})
 
 
 # ================================
