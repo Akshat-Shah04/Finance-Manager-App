@@ -20,20 +20,22 @@ class UserSerializer(serializers.ModelSerializer):
 
 # ✅ Common Transaction Serializer (For Income & Expense)
 class TransactionSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)  # Read-only user field
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
     date = serializers.DateField(
         format="%d-%m-%Y", input_formats=["%d-%m-%Y", "iso-8601"]
     )
     amount = serializers.DecimalField(max_digits=10, decimal_places=2)
     type = serializers.ChoiceField(choices=Transaction.TRANSACTION_TYPES)
-    category = serializers.ChoiceField(choices=Transaction.CATEGORY_CHOICES)
+    category = serializers.CharField()
     payment_mode = serializers.ChoiceField(choices=Transaction.PAYMENT_MODES)
+    source = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = Transaction
         fields = [
             "id",
             "user",
+            "source",
             "type",
             "category",
             "date",
@@ -47,10 +49,9 @@ class TransactionSerializer(serializers.ModelSerializer):
         transaction_type = self.initial_data.get("type", "").capitalize()
 
         if transaction_type == "Expense" and value > 0:
-            return -value  # Convert to negative for expenses
+            raise serializers.ValidationError("Expense amount must be negative.")
         elif transaction_type == "Income" and value < 0:
-            return abs(value)  # Convert to positive for income
-
+            raise serializers.ValidationError("Income amount must be positive.")
         return value
 
 

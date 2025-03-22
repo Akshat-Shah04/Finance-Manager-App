@@ -68,29 +68,7 @@ class Transaction(models.Model):
     TRANSACTION_TYPES = [
         ("Income", "Income"),
         ("Expense", "Expense"),
-    ]
-
-    CATEGORY_CHOICES = [
-        ("Food", "Food"),
-        ("Shopping", "Shopping"),
-        ("Bills", "Bills"),
-        ("Entertainment", "Entertainment"),
-        ("Insurance", "Insurance"),
-        ("Rent", "Rent"),
-        ("Travel", "Travel"),
-        ("Education", "Education"),
-        ("Gifts", "Gifts"),
-        ("Fuel", "Fuel"),
-        ("Loans", "Loans"),
-        ("Investment", "Investment"),
-        ("Health", "Health"),
-        ("Salary", "Salary"),
-        ("Bonus", "Bonus"),
-        ("Refund", "Refund"),
-        ("Interest", "Interest"),
-        ("Dividend", "Dividend"),
-        ("Cash Deposit", "Cash Deposit"),
-        ("Other", "Other"),
+        ("Withdrawal", "Withdrawal"),  # New type for ATM withdrawals
     ]
 
     PAYMENT_MODES = [
@@ -100,7 +78,6 @@ class Transaction(models.Model):
         ("Net Banking", "Net Banking"),
         ("Debit Card", "Debit Card"),
         ("Credit Card", "Credit Card"),
-        ("ATM Withdrawal", "ATM Withdrawal"),
         ("Cash", "Cash"),
         ("Cheque", "Cheque"),
         ("Other", "Other"),
@@ -110,9 +87,7 @@ class Transaction(models.Model):
         FinUser, on_delete=models.CASCADE, related_name="transactions"
     )
     type = models.CharField(max_length=10, choices=TRANSACTION_TYPES, db_index=True)
-    category = models.CharField(
-        max_length=50, choices=CATEGORY_CHOICES, db_index=True, default="Other"
-    )
+    category = models.CharField(max_length=50, default="Other")
     amount = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -120,6 +95,7 @@ class Transaction(models.Model):
         db_index=True,
     )
     date = models.DateField(default=now, db_index=True)
+    source = models.CharField(max_length=100, blank=True, null=True)
     payment_mode = models.CharField(
         max_length=50, choices=PAYMENT_MODES, db_index=True, default="Other"
     )
@@ -129,14 +105,6 @@ class Transaction(models.Model):
     is_deleted = models.BooleanField(default=False)
 
     objects = models.Manager()  # Default manager
-
-    def save(self, *args, **kwargs):
-        """Ensure expenses are stored as negative amounts and income as positive."""
-        if self.type == "Expense" and self.amount > 0:
-            self.amount = -self.amount
-        elif self.type == "Income" and self.amount < 0:
-            self.amount = abs(self.amount)
-        super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
         """Soft delete a transaction instead of actually deleting it."""

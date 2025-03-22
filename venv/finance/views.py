@@ -101,31 +101,42 @@ def delete_transaction(request, transaction_id):
     return Response({"message": "Transaction deleted successfully"})
 
 
-@api_view(["GET"])
+@api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def get_transactions(request):
-    transactions = Transaction.objects.filter(user=request.user, is_deleted=False).only(
-        "id", "type", "category", "amount", "date", "payment_mode"
+    transaction_type = request.GET.get("type")  # Get the type filter from query params
+
+    transactions = Transaction.objects.filter(
+        is_deleted=False
+    )  # Exclude soft-deleted records
+
+    if transaction_type in ["Income", "Expense"]:
+        transactions = transactions.filter(type=transaction_type)
+
+    # Convert queryset to a list of dictionaries
+    data = list(
+        transactions.values(
+            "id",
+            "user__username",
+            "type",
+            "category",
+            "source",
+            "amount",
+            "date",
+            "payment_mode",
+            "description",
+            "created_at",
+            "updated_at",
+            "is_deleted",
+        )
     )
-    serializer = TransactionSerializer(transactions, many=True)
-    return Response(serializer.data)
+
+    return JsonResponse(data, safe=False)
 
 
 # ================================
 # Analytics & Insights
 # ================================
-
-from django.db.models import Sum
-from rest_framework.response import Response
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import base64
-from io import BytesIO
-from django.http import JsonResponse
-from .models import Transaction
 
 
 @api_view(["GET"])
